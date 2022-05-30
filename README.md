@@ -1,3 +1,5 @@
+![](https://content.gnoss.ws/imagenes/proyectos/personalizacion/7e72bf14-28b9-4beb-82f8-e32a3b49d9d3/cms/logognossazulprincipal.png)
+
 # Gnoss.BackgroundTask.CommunityWall.OpenCORE
 
 Aplicación de segundo plano que se encarga de generar la actividad reciente de cada comunidad.
@@ -5,7 +7,7 @@ Aplicación de segundo plano que se encarga de generar la actividad reciente de 
 Configuración estandar de esta aplicación en el archivo docker-compose.yml: 
 
 ```yml
-community_wall:
+communitywall:
     image: communitywall
     env_file: .env
     environment:
@@ -27,7 +29,7 @@ community_wall:
      connectionType: "0"
      intervalo: "100"
     volumes:
-     - ./logs/refresco_cache:/app/logs
+     - ./logs/communitywall:/app/logs
 
 ```
 
