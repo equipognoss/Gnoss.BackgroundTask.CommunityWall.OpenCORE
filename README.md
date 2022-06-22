@@ -10,7 +10,7 @@ Configuración estandar de esta aplicación en el archivo docker-compose.yml:
 
 ```yml
 communitywall:
-    image: gnoss/communitywall
+    image: gnoss/gnoss.backgroundtask.communitywall.opencore
     env_file: .env
     environment:
      virtuosoConnectionString: ${virtuosoConnectionString}
