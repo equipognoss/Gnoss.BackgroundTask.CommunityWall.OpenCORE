@@ -2,6 +2,8 @@
 
 # Gnoss.BackgroundTask.CommunityWall.OpenCORE
 
+![](https://github.com/equipognoss/Gnoss.BackgroundTask.CommunityWall.OpenCORE/workflows/BuildCommunityWall/badge.svg)
+
 Aplicación de segundo plano que se encarga de generar la actividad reciente de cada comunidad.
 
 Este servicio está escuchando la cola de nombre "ColaUsuarios". Se envía un mensaje a esta cola cada vez que se crea, comparte, edita o elimina un recurso; se crea, edita o elimina un comentario; se da de alta, edita su perfil o se da de baja una persona de una comunidad desde la Web o el API, para que este servicio genere el muro de actividad reciente de una comunidad.
