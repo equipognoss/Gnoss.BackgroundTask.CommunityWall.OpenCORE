@@ -126,103 +126,6 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             }
         }
 
-        public void RealizarMantenimientoBD()
-        {
-            /*int caidasRedis = 0;
-            while (true)
-            {
-                using (var scope = ScopedFactory.CreateScope())
-                {
-                    EntityContext entityContext = scope.ServiceProvider.GetRequiredService<EntityContext>();
-                    LoggingService loggingService = scope.ServiceProvider.GetRequiredService<LoggingService>();
-                    VirtuosoAD virtuosoAD = scope.ServiceProvider.GetRequiredService<VirtuosoAD>();
-                    RedisCacheWrapper redisCacheWrapper = scope.ServiceProvider.GetRequiredService<RedisCacheWrapper>();
-                    try
-                    {
-                        ComprobarCancelacionHilo();
-
-                        if (mReiniciarLecturaRabbit)
-                        {
-                            RealizarMantenimientoRabbitMQ(loggingService);
-                        }
-
-                        LiveUsuariosCN liveUsuariosCN = new LiveUsuariosCN(entityContext, loggingService, mConfigService);
-                        LiveUsuariosDS liveUsuariosDS = liveUsuariosCN.ObtenerColaUsuarios();
-
-                        foreach (LiveUsuariosDS.ColaUsuariosRow filaCola in liveUsuariosDS.ColaUsuarios.Rows)
-                        {
-                            ComprobarCancelacionHilo();
-                            try
-                            {
-                                ProcesarFila(filaCola, entityContext, loggingService, redisCacheWrapper, virtuosoAD);
-                                filaCola.NumIntentos = 7;
-                            }
-                            catch (ThreadAbortException) { }
-                            catch (Exception ex)
-                            {
-                                if (ex.GetType().Name.Equals("RedisException"))
-                                {
-                                    caidasRedis++;
-                                    loggingService.GuardarLog(loggingService.DevolverCadenaError(ex, ""), "redis");
-                                    Thread.Sleep(60 * 100);
-                                }
-                                else
-                                {
-                                    caidasRedis = 0;
-                                    filaCola.NumIntentos++;
-                                    loggingService.GuardarLog(loggingService.DevolverCadenaError(ex, ""));
-                                }
-                                ControladorConexiones.CerrarConexiones(false);
-                            }
-                            finally
-                            {
-                                //Si se han registrado 3 caídas consecutivas, enviamos un mensaje a soporte para que lo solucione o mire.
-                                if (caidasRedis == 3)
-                                {
-                                    EnviarCorreoErrorYGuardarLog(new Exception("El servicio Live Usuarios Específico ha sufrido 3 o más excepciones de Redis y se encuentra en espera hasta que se arregle el error."), "", entityContext, loggingService);
-                                }
-                            }
-                        }
-                        liveUsuariosCN.ActualizarBD(liveUsuariosDS);
-                        ComprobarCancelacionHilo();
-                    }
-
-                    catch (ThreadAbortException) { }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        ControladorConexiones.CerrarConexiones(false);
-                        loggingService.GuardarLog(loggingService.DevolverCadenaError(ex, "1.0"));
-                    }
-                    finally
-                    {
-                        if (LoggingService.TrazaHabilitada)
-                        {
-                            string nombreLog = Path.GetFileNameWithoutExtension(mFicheroConfiguracionBD);
-                            string directorioLog = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + Path.DirectorySeparatorChar + "logs";
-
-                            if (!Directory.Exists(directorioLog))
-                            {
-                                Directory.CreateDirectory(directorioLog);
-                            }
-                            mFicheroLog = directorioLog + Path.DirectorySeparatorChar + "traza_" + nombreLog + DateTime.Now.ToString("yyyy-MM-dd") + ".log";
-
-                            loggingService.GuardarTraza(mFicheroLog);
-                        }
-
-                        //ControladorConexiones.CerrarConexiones(false);
-                    }
-
-                    //Duermo el proceso el tiempo establecido
-                    Thread.Sleep(INTERVALO_SEGUNDOS * 1000);
-                }
-            }
-            ControladorConexiones.CerrarConexiones(false);*/
-        }
-
         private void ProcesarFilaColaUsuarios(LiveUsuariosDS.ColaUsuariosRow pColaUsuario,EntityContext entityContext, LoggingService loggingService, RedisCacheWrapper redisCacheWrapper, VirtuosoAD virtuosoAD, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
             ComprobarCancelacionHilo();
@@ -242,10 +145,13 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             using (var scope = ScopedFactory.CreateScope())
             {
                 EntityContext entityContext = scope.ServiceProvider.GetRequiredService<EntityContext>();
+                entityContext.SetTrackingFalse();
                 RedisCacheWrapper redisCacheWrapper = scope.ServiceProvider.GetRequiredService<RedisCacheWrapper>();
                 LoggingService loggingService = scope.ServiceProvider.GetRequiredService<LoggingService>();
                 VirtuosoAD virtuosoAD = scope.ServiceProvider.GetRequiredService<VirtuosoAD>();
+                ConfigService configService = scope.ServiceProvider.GetRequiredService<ConfigService>();
                 IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication = scope.ServiceProvider.GetRequiredService<IServicesUtilVirtuosoAndReplication>();
+                ComprobarTraza("CommunityWall", entityContext, loggingService, redisCacheWrapper, configService, servicesUtilVirtuosoAndReplication);
                 try
                 {
                     ComprobarCancelacionHilo();
@@ -262,8 +168,6 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
                         filaColaUsuario = null;
 
-                        servicesUtilVirtuosoAndReplication.ConexionAfinidad = "";
-
                         ControladorConexiones.CerrarConexiones(false);
                     }
                     return true;
@@ -272,6 +176,10 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 {
                     loggingService.GuardarLogError(ex);
                     return true;
+                }
+                finally
+                {
+                    GuardarTraza(loggingService);
                 }
             }
         }
@@ -762,18 +670,18 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
             //Actualizo la actividad reciente de los usuarios que pertenecen a algún grupo y tienen algún recurso privado
             UsuarioCN usuCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
-            foreach (Guid grupoID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
+            foreach (Guid usuarioID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
             {
-                foreach (Guid perfilID in pListaGruposAfectadosEventoConRecursosPrivados[grupoID])
+                foreach (Guid perfilID in pListaGruposAfectadosEventoConRecursosPrivados[usuarioID])
                 {
                     bool tienePrivados = pListaPerfilesConRecursosPrivados.Contains(perfilID) || pListaPerfilesDeGruposConRecursosPrivados.Contains(perfilID);
 
                     if (tienePrivados)
                     {
-                        Guid? usuarioID = usuCN.ObtenerUsuarioIDPorIDPerfil(perfilID);
-                        if (usuarioID.HasValue && !usuarioID.Value.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID.Value))
+                        //Guid? usuarioID = usuCN.ObtenerUsuarioIDPorIDPerfil(perfilID);
+                        if (!usuarioID.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID))
                         {
-                            listaUsuarios.Add(usuarioID.Value);
+                            listaUsuarios.Add(usuarioID);
                         }
                     }
                 }
