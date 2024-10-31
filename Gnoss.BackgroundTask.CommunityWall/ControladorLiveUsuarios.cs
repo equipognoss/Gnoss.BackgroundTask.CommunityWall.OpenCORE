@@ -657,15 +657,29 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             //Actualizo la actividad reciente de los usuarios que tienen algún recurso privado.
             foreach (Guid usuarioID in pListaUsuariosAfectadosEventoConRecursosPrivados.Keys)
             {
-                foreach (Guid perfilID in pListaUsuariosAfectadosEventoConRecursosPrivados[usuarioID])
-                {
-                    bool tienePrivados = pListaPerfilesConRecursosPrivados.Contains(perfilID) || pListaPerfilesDeGruposConRecursosPrivados.Contains(perfilID);
+                // Cada usuario tiene una actividad reciente propia en la Home de la comundidad que se crea cuando el usuario tenga algun recurso privado y se guarda en cache.
+                // Si existe la clave de cache, actualizamos su actividad reciente en la Home, si no tiene, buscamos si tiene recursos privados (si no cumple ninguna no se actualiza la actividad reciente de ese usuario).
+                List<object> actividadRecientePropia = pLiveUsuariosCL.ObtenerLiveProyectoUsuario(usuarioID, pFilaCola.ProyectoId, "es");
 
-                    if (tienePrivados && !usuarioID.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID))
+                if (actividadRecientePropia != null && actividadRecientePropia.Count > 0)
+                {
+                    if (!usuarioID.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID))
                     {
                         listaUsuarios.Add(usuarioID);
                     }
                 }
+                else
+                {
+                    foreach (Guid perfilID in pListaUsuariosAfectadosEventoConRecursosPrivados[usuarioID])
+                    {
+                        bool tienePrivados = pListaPerfilesConRecursosPrivados.Contains(perfilID) || pListaPerfilesDeGruposConRecursosPrivados.Contains(perfilID);
+
+                        if (tienePrivados && !usuarioID.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID))
+                        {
+                            listaUsuarios.Add(usuarioID);
+                        }
+                    }
+                }               
             }
 
             //Actualizo la actividad reciente de los usuarios que pertenecen a algún grupo y tienen algún recurso privado
