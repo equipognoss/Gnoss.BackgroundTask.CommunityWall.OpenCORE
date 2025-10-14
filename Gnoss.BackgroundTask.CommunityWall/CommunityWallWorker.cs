@@ -1,3 +1,4 @@
+using Es.Riam.Gnoss.Elementos.Suscripcion;
 using Es.Riam.Gnoss.Servicios;
 using Es.Riam.Gnoss.Util.Configuracion;
 using Es.Riam.Gnoss.Win.ServicioLiveUsuarios;
@@ -14,20 +15,21 @@ namespace Gnoss.BackgroundTask.CommunityWall
 {
     public class CommunityWallWorker : Worker
     {
-        private readonly ILogger<CommunityWallWorker> _logger;
         private readonly ConfigService _configService;
-
-        public CommunityWallWorker(ILogger<CommunityWallWorker> logger, ConfigService configService, IServiceScopeFactory scopeFactory)
+        private ILogger mlogger;
+        private ILoggerFactory mLoggerFactory;
+        public CommunityWallWorker(ConfigService configService, IServiceScopeFactory scopeFactory, ILogger<CommunityWallWorker> logger, ILoggerFactory loggerFactory)
             : base(logger, scopeFactory)
         {
-            _logger = logger;
             _configService = configService;
+            mlogger = logger;
+            mLoggerFactory = loggerFactory;
         }
 
         protected override List<ControladorServicioGnoss> ObtenerControladores()
         {
             List<ControladorServicioGnoss> controladores = new List<ControladorServicioGnoss>();
-            controladores.Add(new ControladorLiveUsuarios(ScopedFactory, _configService));
+            controladores.Add(new ControladorLiveUsuarios(ScopedFactory, _configService, mLoggerFactory.CreateLogger<ControladorLiveUsuarios>(), mLoggerFactory));
             return controladores;
         }
     }

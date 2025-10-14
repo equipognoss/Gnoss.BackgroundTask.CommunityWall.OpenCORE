@@ -36,6 +36,8 @@ using Es.Riam.Gnoss.AD.EntityModelBASE;
 using Es.Riam.Gnoss.AD.Virtuoso;
 using Es.Riam.Gnoss.AD.BASE_BD;
 using Es.Riam.AbstractsOpen;
+using Microsoft.Extensions.Logging;
+using Es.Riam.Gnoss.Elementos.Suscripcion;
 
 namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 {
@@ -72,6 +74,8 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         private List<Guid> mListaAutoresID = new List<Guid>();
 
         private List<Guid> mListaOrganizacionesIDAutores = new List<Guid>();
+        private ILogger mlogger;
+        private ILoggerFactory mLoggerFactory;
 
         #endregion
 
@@ -81,14 +85,16 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         /// Constructor
         /// </summary>
         /// <param name="pFicheroConfiguracionSitioWeb">Ruta al archivo de configuración del sitio Web</param>
-        public ControladorLiveUsuarios(IServiceScopeFactory scopedFactory, ConfigService configService)
-            : base(scopedFactory, configService)
+        public ControladorLiveUsuarios(IServiceScopeFactory scopedFactory, ConfigService configService, ILogger<ControladorLiveUsuarios> logger, ILoggerFactory loggerFactory)
+            : base(scopedFactory, configService,logger,loggerFactory)
         {
+            mlogger = logger;
+            mLoggerFactory = loggerFactory;
         }
 
         protected override ControladorServicioGnoss ClonarControlador()
         {
-            return new ControladorLiveUsuarios(ScopedFactory, mConfigService);
+            return new ControladorLiveUsuarios(ScopedFactory, mConfigService, mLoggerFactory.CreateLogger<ControladorLiveUsuarios>(), mLoggerFactory);
         }
 
         #endregion
@@ -102,7 +108,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             {
                 try
                 {
-                    ParametroAplicacionCN parametroApliCN = new ParametroAplicacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+                    ParametroAplicacionCN parametroApliCN = new ParametroAplicacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<ParametroAplicacionCN>(), mLoggerFactory);
                     //ParametroAplicacionDS paramApliDS = parametroApliCN.ObtenerConfiguracionGnoss();
                     //parametroApliCN.Dispose();
                     ParametroAplicacionGBD parametroAplicionGBD = new ParametroAplicacionGBD(loggingService, entityContext, mConfigService);
@@ -120,7 +126,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 }
                 catch (Exception ex)
                 {
-                    loggingService.GuardarLog(loggingService.DevolverCadenaError(ex, "1.0"));
+                    loggingService.GuardarLog(loggingService.DevolverCadenaError(ex, "1.0"),mlogger);
                     Thread.Sleep(1000);
                 }
             }
@@ -136,7 +142,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             }
             catch (Exception ex)
             {
-                loggingService.GuardarLogError(ex);
+                loggingService.GuardarLogError(ex,mlogger);
             }
         }
         
@@ -174,7 +180,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 }
                 catch (Exception ex)
                 {
-                    loggingService.GuardarLogError(ex);
+                    loggingService.GuardarLogError(ex, mlogger);
                     return true;
                 }
                 finally
@@ -191,7 +197,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 RabbitMQClient.ReceivedDelegate funcionProcesarItem = new RabbitMQClient.ReceivedDelegate(ProcesarItem);
                 RabbitMQClient.ShutDownDelegate funcionShutDown = new RabbitMQClient.ShutDownDelegate(OnShutDown);
 
-                RabbitMQClient rabbitMQClient = new RabbitMQClient(RabbitMQClient.BD_SERVICIOS_WIN, "ColaUsuarios",loggingService, mConfigService, "", "ColaUsuarios");
+                RabbitMQClient rabbitMQClient = new RabbitMQClient(RabbitMQClient.BD_SERVICIOS_WIN, "ColaUsuarios",loggingService, mConfigService, mLoggerFactory.CreateLogger<RabbitMQClient>(), mLoggerFactory, "", "ColaUsuarios");
 
                 try
                 {
@@ -201,7 +207,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 catch (Exception ex)
                 {
                     mReiniciarLecturaRabbit = true;
-                    loggingService.GuardarLogError(ex);
+                    loggingService.GuardarLogError(ex, mlogger);
                 }
             }
         }
@@ -223,7 +229,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             }
             catch (Exception ex)
             {
-                loggingService.GuardarLog(loggingService.DevolverCadenaError(ex, "1.0"));
+                loggingService.GuardarLog(loggingService.DevolverCadenaError(ex, "1.0"),mlogger);
             }
         }
 
@@ -473,7 +479,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
         private void ProcesarFila(LiveUsuariosDS.ColaUsuariosRow pFilaCola, EntityContext entityContext, LoggingService loggingService, RedisCacheWrapper redisCacheWrapper, VirtuosoAD virtuosoAD, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
-            LiveUsuariosCL liveUsuariosCL = new LiveUsuariosCL(entityContext, loggingService, redisCacheWrapper, mConfigService, servicesUtilVirtuosoAndReplication);
+            LiveUsuariosCL liveUsuariosCL = new LiveUsuariosCL(entityContext, loggingService, redisCacheWrapper, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<LiveUsuariosCL>(), mLoggerFactory);
             liveUsuariosCL.Dominio = mDominio;
 
             ObtenerIDElementoPrincipal(pFilaCola, entityContext, loggingService, servicesUtilVirtuosoAndReplication);
@@ -496,7 +502,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             bool documentoBorrador = false;
             if (esDocumento)
             {
-                DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+                DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
                 documentoBorrador = docCN.EsDocumentoBorrador(mElementoID);
                 docCN.Dispose();
             }
@@ -532,15 +538,15 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
                 //List<Guid> listaGruposAfectadosPorEvento = ObtenerListaGruposDeProyectoAfectadosPorEvento(pFilaCola, out recursoPrivado);
 
-                DocumentacionCL documentacionCL = new DocumentacionCL(mFicheroConfiguracionBD, mFicheroConfiguracionBD, entityContext, loggingService, redisCacheWrapper, mConfigService, servicesUtilVirtuosoAndReplication);
+                DocumentacionCL documentacionCL = new DocumentacionCL(mFicheroConfiguracionBD, mFicheroConfiguracionBD, entityContext, loggingService, redisCacheWrapper, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCL>(), mLoggerFactory);
                 documentacionCL.Dominio = mDominio;
                 List<Guid> listaPerfilesConRecursosPrivadosProyecto = documentacionCL.PerfilesConRecursosPrivados(pFilaCola.ProyectoId);
                 documentacionCL.Dispose();
 
-                IdentidadCN identidadCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+                IdentidadCN identidadCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<IdentidadCN>(), mLoggerFactory);
                 List<Guid> listaPerfilesGruposConRecursosPrivadosProyecto = identidadCN.ObtenerPerfilesProyectoParticipanEnGruposConRecursosPrivados(pFilaCola.ProyectoId);
 
-                ProyectoCL proyCL = new ProyectoCL(entityContext, loggingService, redisCacheWrapper, mConfigService, virtuosoAD, servicesUtilVirtuosoAndReplication);
+                ProyectoCL proyCL = new ProyectoCL(entityContext, loggingService, redisCacheWrapper, mConfigService, virtuosoAD, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<ProyectoCL>(), mLoggerFactory);
                 short tipoAcceso = proyCL.ObtenerFilaProyecto(pFilaCola.ProyectoId).TipoAcceso;
 
                 bool proyectoPrivado = tipoAcceso.Equals((short)TipoAcceso.Privado) || tipoAcceso.Equals((short)TipoAcceso.Reservado);
@@ -562,7 +568,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                     //usuCN.Dispose();
 
                     // Obtener perfiles relacionadas con el recurso (editores/lectores) y eliminamos sus cachés
-                    DocumentacionCN documentacionCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+                    DocumentacionCN documentacionCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
                     DataWrapperDocumentacion editoresActualesDocumentoDW = documentacionCN.ObtenerEditoresDocumento(mElementoID);
                     Guid perfilPublicadorID = documentacionCN.ObtenerPerfilPublicadorDocumento(mElementoID, pFilaCola.ProyectoId);
                     documentacionCN.Dispose();
@@ -584,8 +590,8 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
         private void AgregarLiveRecursoPrivado(DataWrapperDocumentacion pEditoresActualesDocumento, LiveUsuariosDS.ColaUsuariosRow pFilaCola, LiveUsuariosCL pLiveUsuariosCL, bool pProyectoPrivado, string pNombreCacheElemento, EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
-            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
-            IdentidadCN identCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
+            IdentidadCN identCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<IdentidadCN>(), mLoggerFactory);
 
             List<Guid> listaUsuarios = new List<Guid>();
 
@@ -648,7 +654,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         private void AgregarLiveRecursoPublico(LiveUsuariosCL pLiveUsuariosCL, LiveUsuariosDS.ColaUsuariosRow pFilaCola, Dictionary<Guid, List<Guid>> pListaUsuariosAfectadosEventoConRecursosPrivados, Dictionary<Guid, List<Guid>> pListaGruposAfectadosEventoConRecursosPrivados, List<Guid> pListaPerfilesConRecursosPrivados, List<Guid> pListaPerfilesDeGruposConRecursosPrivados, bool pProyectoPrivado, string pNombreCacheElemento, EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
             //Obtenemos la privacidad del recurso
-            DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
             bool recursoVisibleSoloParaMiembros = docCN.EsDocumentoEnProyectoPublicoSoloParaMiembros(mElementoID);
             docCN.Dispose();
 
@@ -683,7 +689,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             }
 
             //Actualizo la actividad reciente de los usuarios que pertenecen a algún grupo y tienen algún recurso privado
-            UsuarioCN usuCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            UsuarioCN usuCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
             foreach (Guid usuarioID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
             {
                 foreach (Guid perfilID in pListaGruposAfectadosEventoConRecursosPrivados[usuarioID])
@@ -771,7 +777,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
             if (pListaPerfilesConRecursosPrivados.Count > 0)
             {
-                PersonaCN persCN = new PersonaCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+                PersonaCN persCN = new PersonaCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<PersonaCN>(), mLoggerFactory);
                 List<Guid> listaUsuariosID = persCN.ObtenerUsuariosIDDeListaPerfil(pListaPerfilesConRecursosPrivados);
                 foreach (Guid usuarioID in listaUsuariosID)
                 {
@@ -780,8 +786,8 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             }
 
             //Quitamos el recurso de todas los grupos que lo tienen en su cola
-            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
-            IdentidadCN identCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
+            IdentidadCN identCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<IdentidadCN>(), mLoggerFactory);
             List<Guid> listaTodosGruposProyecto = usuarioCN.ObtenerListaGruposPorProyecto(pProyectoID);
 
             //Al ser una clave de caché privada para cada grupo, hay que obtener los grupos si o si.
@@ -807,12 +813,12 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         public void ObtenerListaUsuariosDeProyectoAfectadosPorEvento(LiveUsuariosDS.ColaUsuariosRow pFilaCola, ref Dictionary<Guid, List<Guid>> pListaUsuariosAfectados, ref Dictionary<Guid, List<Guid>> pListaGruposAfectados, out bool pDocumentoPrivadoEditores, EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
             //Obtenemos la privacidad del recurso
-            DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
             pDocumentoPrivadoEditores = docCN.EsDocumentoEnProyectoPrivadoEditores(mElementoID, pFilaCola.ProyectoId);
             docCN.Dispose();
 
             /*Agregar o eliminar usuarios por su scope*/
-            IdentidadCN identidadCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            IdentidadCN identidadCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<IdentidadCN>(), mLoggerFactory);
             Guid? perfilID = null;
             if (pFilaCola.ProyectoId.Equals(ProyectoAD.MetaProyecto))
             {
@@ -866,7 +872,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             }
             identidadCN.Dispose();
 
-            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
             if (pDocumentoPrivadoEditores)
             {
                 pListaUsuariosAfectados = usuarioCN.ObtenerDiccionarioUsuariosYPerfilesPorProyectoYDocPrivado(pFilaCola.ProyectoId, mElementoID);
@@ -885,11 +891,11 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         {
             List<Guid> listaGrupos = new List<Guid>();
 
-            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
-            IdentidadCN identidadCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
+            IdentidadCN identidadCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<IdentidadCN>(), mLoggerFactory);
 
             //Obtenemos la privacidad del recurso
-            DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
             pDocumentoPrivadoEditores = docCN.EsDocumentoEnProyectoPrivadoEditores(mElementoID, pFilaCola.ProyectoId);
             docCN.Dispose();
 
@@ -976,7 +982,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 case TipoLive.Recurso:
                 case TipoLive.Pregunta:
                 case TipoLive.Debate:
-                    DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+                    DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
 
                     switch (accion)
                     {
@@ -1133,7 +1139,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         /// <returns>TRUE si hay que procesar el elemento de la cola para crear eventos de la home de la comunidad, FALSE en caso contrario</returns>
         private bool HayQueProcesarEvento(Guid recursoID, LiveUsuariosDS.ColaUsuariosRow pColaRow, EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
-            ProyectoCN proyCN = new ProyectoCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication);
+            ProyectoCN proyCN = new ProyectoCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<ProyectoCN>(), mLoggerFactory);
            
             return proyCN.ComprobarSiRecursoSePublicaEnActividadReciente(recursoID, pColaRow.ProyectoId);
             
