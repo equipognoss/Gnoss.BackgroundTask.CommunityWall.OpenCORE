@@ -38,6 +38,7 @@ using Es.Riam.Gnoss.AD.BASE_BD;
 using Es.Riam.AbstractsOpen;
 using Microsoft.Extensions.Logging;
 using Es.Riam.Gnoss.Elementos.Suscripcion;
+using Es.Riam.Gnoss.Logica.Flujos;
 
 namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 {
@@ -145,7 +146,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 loggingService.GuardarLogError(ex,mlogger);
             }
         }
-        
+
         private bool ProcesarItem(string pFila)
         {
             using (var scope = ScopedFactory.CreateScope())
@@ -225,7 +226,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
                 RealizarMantenimientoRabbitMQ(loggingService);
                 //RealizarMantenimientoBD();
-                
+
             }
             catch (Exception ex)
             {
@@ -422,7 +423,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                     if (!accion.Equals(AccionLive.Eliminado))
                     {
                         int num = pLiveUsuariosCL.ObtenerNumElementosProyectoPerfilOrg( pOrganizacionID, pFilaCola.ProyectoId);
-                       
+
                         mListaScorePorProyPerfilOrg[claveProyPerfilOrg] = pLiveUsuariosCL.AgregarLiveProyectoPerfilOrg(pOrganizacionID, pFilaCola.ProyectoId, pNombreCacheElemento, ObtenerUltimoScoreProyectoPerfilOrg(pFilaCola.ProyectoId, pOrganizacionID));
 
                         num++;
@@ -581,41 +582,94 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
 
                     // Agrega la caché a los implicados (Funciona OK)
-                    AgregarLiveRecursoPrivado(editoresActualesDocumentoDW, pFilaCola, liveUsuariosCL, proyectoPrivado, nombreCacheElemento, entityContext, loggingService, servicesUtilVirtuosoAndReplication);
+                    AgregarLiveRecursoPrivado(editoresActualesDocumentoDW, listaUsuariosAfectadosPorEvento, listaGruposAfectadosPorEvento, listaPerfilesConRecursosPrivadosProyecto, listaPerfilesGruposConRecursosPrivadosProyecto, pFilaCola, liveUsuariosCL, proyectoPrivado, nombreCacheElemento, entityContext, loggingService, servicesUtilVirtuosoAndReplication);
                 }
             }
 
             liveUsuariosCL.Dispose();
         }
 
-        private void AgregarLiveRecursoPrivado(DataWrapperDocumentacion pEditoresActualesDocumento, LiveUsuariosDS.ColaUsuariosRow pFilaCola, LiveUsuariosCL pLiveUsuariosCL, bool pProyectoPrivado, string pNombreCacheElemento, EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
+        private void AgregarLiveRecursoPrivado(DataWrapperDocumentacion pEditoresActualesDocumento, Dictionary<Guid, List<Guid>> pListaUsuariosAfectadosEventoConRecursosPrivados, Dictionary<Guid, List<Guid>> pListaGruposAfectadosEventoConRecursosPrivados, List<Guid> pListaPerfilesConRecursosPrivados, List<Guid> pListaPerfilesDeGruposConRecursosPrivados, LiveUsuariosDS.ColaUsuariosRow pFilaCola, LiveUsuariosCL pLiveUsuariosCL, bool pProyectoPrivado, string pNombreCacheElemento, EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
             UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
             IdentidadCN identCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<IdentidadCN>(), mLoggerFactory);
+            DocumentacionCN documentacionCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
 
             List<Guid> listaUsuarios = new List<Guid>();
 
-            foreach (AD.EntityModel.Models.Documentacion.DocumentoRolIdentidad rolIdentidad in pEditoresActualesDocumento.ListaDocumentoRolIdentidad)
+            Guid? estadoID = documentacionCN.ObtenerEstadoIDDeDocumento(mElementoID);
+            if (estadoID.HasValue)
             {
-                // Agregar el recurso a cada live del usuario que sea editor.
-                Guid? usuarioID = usuarioCN.ObtenerUsuarioIDPorIDPerfil(rolIdentidad.PerfilID);
-
-                if (usuarioID.HasValue && !listaUsuarios.Contains(usuarioID.Value))
+                foreach (Guid usuarioID in pListaUsuariosAfectadosEventoConRecursosPrivados.Keys)
                 {
-                    listaUsuarios.Add(usuarioID.Value);
+                    // Cada usuario tiene una actividad reciente propia en la Home de la comundidad que se crea cuando el usuario tenga algun recurso privado y se guarda en cache.
+                    // Si existe la clave de cache, actualizamos su actividad reciente en la Home, si no tiene, buscamos si tiene recursos privados (si no cumple ninguna no se actualiza la actividad reciente de ese usuario).
+                    List<object> actividadRecientePropia = pLiveUsuariosCL.ObtenerLiveProyectoUsuario(usuarioID, pFilaCola.ProyectoId, "es");
+
+                    if (actividadRecientePropia != null && actividadRecientePropia.Count > 0)
+                    {
+                        if (!usuarioID.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID))
+                        {
+                            listaUsuarios.Add(usuarioID);
+                        }
+                    }
+                    else
+                    {
+                        foreach (Guid perfilID in pListaUsuariosAfectadosEventoConRecursosPrivados[usuarioID])
+                        {
+                            bool tienePrivados = pListaPerfilesConRecursosPrivados.Contains(perfilID) || pListaPerfilesDeGruposConRecursosPrivados.Contains(perfilID);
+
+                            if (tienePrivados && !usuarioID.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID))
+                            {
+                                listaUsuarios.Add(usuarioID);
+                            }
+                        }
+                    }
+                }
+
+                //Actualizo la actividad reciente de los usuarios que pertenecen a algún grupo y tienen algún recurso privado
+                UsuarioCN usuCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
+                foreach (Guid usuarioID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
+                {
+                    foreach (Guid perfilID in pListaGruposAfectadosEventoConRecursosPrivados[usuarioID])
+                    {
+                        bool tienePrivados = pListaPerfilesConRecursosPrivados.Contains(perfilID) || pListaPerfilesDeGruposConRecursosPrivados.Contains(perfilID);
+
+                        if (tienePrivados)
+                        {
+                            //Guid? usuarioID = usuCN.ObtenerUsuarioIDPorIDPerfil(perfilID);
+                            if (!usuarioID.Equals(Guid.Empty) && !listaUsuarios.Contains(usuarioID))
+                            {
+                                listaUsuarios.Add(usuarioID);
+                            }
+                        }
+                    }
                 }
             }
-
-            foreach (AD.EntityModel.Models.Documentacion.DocumentoRolGrupoIdentidades rolGrupoIdentidades in pEditoresActualesDocumento.ListaDocumentoRolGrupoIdentidades)
+            else
             {
-                // Agregar el recurso a cada live del usuario que pertenezca al grupo por ser editor.
-                List<Guid> usuariosList = usuarioCN.ObtenerUsuariosPertenecenGrupo(rolGrupoIdentidades.GrupoID);
-
-                foreach (Guid usuarioID in usuariosList)
+                foreach (AD.EntityModel.Models.Documentacion.DocumentoRolIdentidad rolIdentidad in pEditoresActualesDocumento.ListaDocumentoRolIdentidad)
                 {
-                    if (!listaUsuarios.Contains(usuarioID))
+                    // Agregar el recurso a cada live del usuario que sea editor.
+                    Guid? usuarioID = usuarioCN.ObtenerUsuarioIDPorIDPerfil(rolIdentidad.PerfilID);
+
+                    if (usuarioID.HasValue && !listaUsuarios.Contains(usuarioID.Value))
                     {
-                        listaUsuarios.Add(usuarioID);
+                        listaUsuarios.Add(usuarioID.Value);
+                    }
+                }
+
+                foreach (AD.EntityModel.Models.Documentacion.DocumentoRolGrupoIdentidades rolGrupoIdentidades in pEditoresActualesDocumento.ListaDocumentoRolGrupoIdentidades)
+                {
+                    // Agregar el recurso a cada live del usuario que pertenezca al grupo por ser editor.
+                    List<Guid> usuariosList = usuarioCN.ObtenerUsuariosPertenecenGrupo(rolGrupoIdentidades.GrupoID);
+
+                    foreach (Guid usuarioID in usuariosList)
+                    {
+                        if (!listaUsuarios.Contains(usuarioID))
+                        {
+                            listaUsuarios.Add(usuarioID);
+                        }
                     }
                 }
             }
@@ -623,6 +677,11 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             foreach (Guid usuarioID in listaUsuarios)
             {
                 ActualizarLiveRecursoPublicoUsuario(pLiveUsuariosCL, pFilaCola, mListaAutoresID, mListaOrganizacionesIDAutores, pNombreCacheElemento, pProyectoPrivado, true, usuarioID);
+            }
+
+            foreach (Guid grupoID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
+            {
+                ActualizarLiveProyectoGrupo(pFilaCola, grupoID, pLiveUsuariosCL, pNombreCacheElemento);
             }
 
             usuarioCN.Dispose();
@@ -685,7 +744,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                             listaUsuarios.Add(usuarioID);
                         }
                     }
-                }               
+                }
             }
 
             //Actualizo la actividad reciente de los usuarios que pertenecen a algún grupo y tienen algún recurso privado
@@ -814,7 +873,13 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         {
             //Obtenemos la privacidad del recurso
             DocumentacionCN docCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
+            FlujosCN flujosCN = new FlujosCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<FlujosCN>(), mLoggerFactory);
             pDocumentoPrivadoEditores = docCN.EsDocumentoEnProyectoPrivadoEditores(mElementoID, pFilaCola.ProyectoId);
+            Guid? estadoID = docCN.ObtenerEstadoIDDeDocumento(mElementoID);
+            if (estadoID.HasValue)
+            {
+                pDocumentoPrivadoEditores = !flujosCN.ComprobarEstadoEsPublico(estadoID.Value);
+            }
             docCN.Dispose();
 
             /*Agregar o eliminar usuarios por su scope*/
@@ -875,8 +940,16 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             UsuarioCN usuarioCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
             if (pDocumentoPrivadoEditores)
             {
-                pListaUsuariosAfectados = usuarioCN.ObtenerDiccionarioUsuariosYPerfilesPorProyectoYDocPrivado(pFilaCola.ProyectoId, mElementoID);
-                pListaGruposAfectados = usuarioCN.ObtenerDiccionarioGruposYPerfilesPorProyectoYDocPrivado(pFilaCola.ProyectoId, mElementoID);
+                if (estadoID.HasValue)
+                {
+                    usuarioCN.ObtenerUsuarioIDEditoresLectoresRecursoPorEstado(estadoID.Value, pListaUsuariosAfectados);
+                    pListaGruposAfectados = usuarioCN.ObtenerDiccionarioGruposYPerfilesPorProyectoYEstado(estadoID.Value, pFilaCola.ProyectoId);
+                }
+                else
+                {
+                    pListaUsuariosAfectados = usuarioCN.ObtenerDiccionarioUsuariosYPerfilesPorProyectoYDocPrivado(pFilaCola.ProyectoId, mElementoID);
+                    pListaGruposAfectados = usuarioCN.ObtenerDiccionarioGruposYPerfilesPorProyectoYDocPrivado(pFilaCola.ProyectoId, mElementoID);
+                }
             }
             else
             {
@@ -1140,9 +1213,9 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         private bool HayQueProcesarEvento(Guid recursoID, LiveUsuariosDS.ColaUsuariosRow pColaRow, EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
             ProyectoCN proyCN = new ProyectoCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<ProyectoCN>(), mLoggerFactory);
-           
+
             return proyCN.ComprobarSiRecursoSePublicaEnActividadReciente(recursoID, pColaRow.ProyectoId);
-            
+
         }
     }
 
