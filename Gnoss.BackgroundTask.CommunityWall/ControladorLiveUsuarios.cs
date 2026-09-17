@@ -54,8 +54,10 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         #region Miembros
 
         /// <summary>
-        /// Almacena el último Score que se ha asginado a cada perfil de usuario
+        /// Almacena el ï¿½ltimo Score que se ha asginado a cada perfil de usuario
         /// </summary>
+        private RabbitMQClient mRabbitMQClient;
+
         private Dictionary<Guid, int> mListaScorePorPerfil = new Dictionary<Guid, int>();
 
         private Dictionary<string, int> mListaScorePorProyUsuSuscr = new Dictionary<string, int>();
@@ -85,7 +87,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="pFicheroConfiguracionSitioWeb">Ruta al archivo de configuración del sitio Web</param>
+        /// <param name="pFicheroConfiguracionSitioWeb">Ruta al archivo de configuraciï¿½n del sitio Web</param>
         public ControladorLiveUsuarios(IServiceScopeFactory scopedFactory, ConfigService configService, ILogger<ControladorLiveUsuarios> logger, ILoggerFactory loggerFactory)
             : base(scopedFactory, configService,logger,loggerFactory)
         {
@@ -100,7 +102,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
         #endregion
 
-        #region Métodos generales
+        #region Mï¿½todos generales
 
         private void EstablecerDominioCache(EntityContext entityContext, LoggingService loggingService, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
@@ -198,11 +200,12 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 RabbitMQClient.ReceivedDelegate funcionProcesarItem = new RabbitMQClient.ReceivedDelegate(ProcesarItem);
                 RabbitMQClient.ShutDownDelegate funcionShutDown = new RabbitMQClient.ShutDownDelegate(OnShutDown);
 
-                RabbitMQClient rabbitMQClient = new RabbitMQClient(RabbitMQClient.BD_SERVICIOS_WIN, "ColaUsuarios",loggingService, mConfigService, mLoggerFactory.CreateLogger<RabbitMQClient>(), mLoggerFactory, "", "ColaUsuarios");
+                mRabbitMQClient?.Dispose();
+                mRabbitMQClient = new RabbitMQClient(RabbitMQClient.BD_SERVICIOS_WIN, "ColaUsuarios",loggingService, mConfigService, mLoggerFactory.CreateLogger<RabbitMQClient>(), mLoggerFactory, "", "ColaUsuarios");
 
                 try
                 {
-                    rabbitMQClient.ObtenerElementosDeCola(funcionProcesarItem, funcionShutDown);
+                    mRabbitMQClient.ObtenerElementosDeCola(funcionProcesarItem, funcionShutDown);
                     mReiniciarLecturaRabbit = false;
                 }
                 catch (Exception ex)
@@ -213,7 +216,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             }
         }
 
-        public override void RealizarMantenimiento(EntityContext entityContext, EntityContextBASE entityContextBASE, UtilidadesVirtuoso utilidadesVirtuoso, LoggingService loggingService, RedisCacheWrapper redisCacheWrapper, GnossCache gnossCache, VirtuosoAD virtuosoAD, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
+        public override void RealizarMantenimiento(EntityContext entityContext, EntityContextBASE entityContextBASE, UtilidadesVirtuoso utilidadesVirtuoso, LoggingService loggingService, RedisCacheWrapper redisCacheWrapper, GnossCache gnossCache, IServicesUtilVirtuosoAndReplication servicesUtilVirtuosoAndReplication)
         {
             try
             {
@@ -265,12 +268,12 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                         {
                             string claveProyInvitado = pFilaCola.ProyectoId.ToString() + UsuarioAD.Invitado.ToString();
 
-                            // Si el recurso es visible por todos y el usuario no tiene valor, se intenta agregar a la caché de usuario invitado.
+                            // Si el recurso es visible por todos y el usuario no tiene valor, se intenta agregar a la cachï¿½ de usuario invitado.
                             mListaScorePorProyUsu[claveProyInvitado] = pLiveUsuariosCL.AgregarLiveProyectoUsuarioInvitado(pFilaCola.ProyectoId, pNombreCacheElemento, ObtenerUltimoScoreProyectoUsuario(pFilaCola.ProyectoId, UsuarioAD.Invitado));
                         }
                         else if (pRecursoVisibleSoloParaMiembros)
                         {
-                            // Si el recurso no es visible por todos, se tiene que eliminar de la caché de usuario invitado.
+                            // Si el recurso no es visible por todos, se tiene que eliminar de la cachï¿½ de usuario invitado.
                             pLiveUsuariosCL.EliminarLiveProyectoUsuarioInvitado(pFilaCola.ProyectoId, pNombreCacheElemento);
                         }
                     }
@@ -290,7 +293,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
                     if (!pRecursoVisibleSoloParaMiembros && !pUsuarioID.HasValue)
                     {
-                        // Si el recurso es visible por todos y se edita o cambia la privacidad, deberá borrarse para los invitados.
+                        // Si el recurso es visible por todos y se edita o cambia la privacidad, deberï¿½ borrarse para los invitados.
                         pLiveUsuariosCL.EliminarLiveProyectoUsuarioInvitado(pFilaCola.ProyectoId, pNombreCacheElemento);
                     }
                 }
@@ -558,17 +561,17 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 }
                 else
                 {
-                    //// Obtenemos los perfiles que se han quitado de la edicción
+                    //// Obtenemos los perfiles que se han quitado de la edicciï¿½n
                     //List<Guid> listaEditoresEliminadosEdiccionRecursoPrivado = ObtenerEliminadosEdiccionRecursoPrivado(pFilaCola.InfoExtra, LiveUsuariosAD.EDITOR_ELIMINADO);
 
-                    //// Obtenemos los grupos que se han quitado de la edicción
+                    //// Obtenemos los grupos que se han quitado de la edicciï¿½n
                     //List<Guid> listaGruposEditoresEliminadosEdiccionRecursoPrivado = ObtenerEliminadosEdiccionRecursoPrivado(pFilaCola.InfoExtra, LiveUsuariosAD.GRUPO_EDITORES_ELIMINADO);
 
                     //UsuarioCN usuCN = new UsuarioCN(mFicheroConfiguracionBD, false);
                     //Dictionary<Guid, List<Guid>> diccionarioGruposIDPerfilesID = usuCN.ObtenerDiccionarioGruposYPerfilesPorListaGruposID(listaGruposEditoresEliminadosEdiccionRecursoPrivado);
                     //usuCN.Dispose();
 
-                    // Obtener perfiles relacionadas con el recurso (editores/lectores) y eliminamos sus cachés
+                    // Obtener perfiles relacionadas con el recurso (editores/lectores) y eliminamos sus cachï¿½s
                     DocumentacionCN documentacionCN = new DocumentacionCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<DocumentacionCN>(), mLoggerFactory);
                     DataWrapperDocumentacion editoresActualesDocumentoDW = documentacionCN.ObtenerEditoresDocumento(mElementoID);
                     Guid perfilPublicadorID = documentacionCN.ObtenerPerfilPublicadorDocumento(mElementoID, pFilaCola.ProyectoId);
@@ -581,7 +584,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                     }
 
 
-                    // Agrega la caché a los implicados (Funciona OK)
+                    // Agrega la cachï¿½ a los implicados (Funciona OK)
                     AgregarLiveRecursoPrivado(editoresActualesDocumentoDW, listaUsuariosAfectadosPorEvento, listaGruposAfectadosPorEvento, listaPerfilesConRecursosPrivadosProyecto, listaPerfilesGruposConRecursosPrivadosProyecto, pFilaCola, liveUsuariosCL, proyectoPrivado, nombreCacheElemento, entityContext, loggingService, servicesUtilVirtuosoAndReplication);
                 }
             }
@@ -627,7 +630,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                     }
                 }
 
-                //Actualizo la actividad reciente de los usuarios que pertenecen a algún grupo y tienen algún recurso privado
+                //Actualizo la actividad reciente de los usuarios que pertenecen a algï¿½n grupo y tienen algï¿½n recurso privado
                 UsuarioCN usuCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
                 foreach (Guid usuarioID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
                 {
@@ -719,7 +722,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
             List<Guid> listaUsuarios = new List<Guid>();
 
-            //Actualizo la actividad reciente de los usuarios que tienen algún recurso privado.
+            //Actualizo la actividad reciente de los usuarios que tienen algï¿½n recurso privado.
             foreach (Guid usuarioID in pListaUsuariosAfectadosEventoConRecursosPrivados.Keys)
             {
                 // Cada usuario tiene una actividad reciente propia en la Home de la comundidad que se crea cuando el usuario tenga algun recurso privado y se guarda en cache.
@@ -747,7 +750,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 }
             }
 
-            //Actualizo la actividad reciente de los usuarios que pertenecen a algún grupo y tienen algún recurso privado
+            //Actualizo la actividad reciente de los usuarios que pertenecen a algï¿½n grupo y tienen algï¿½n recurso privado
             UsuarioCN usuCN = new UsuarioCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<UsuarioCN>(), mLoggerFactory);
             foreach (Guid usuarioID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
             {
@@ -775,7 +778,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             // Agregamos el recurso al live general
             ActualizarLiveRecursoPublicoUsuario(pLiveUsuariosCL, pFilaCola, mListaAutoresID, mListaOrganizacionesIDAutores, pNombreCacheElemento, pProyectoPrivado, recursoVisibleSoloParaMiembros);
 
-            // Inevery Crea: Hay que mantener una caché del proyecto por grupo para que tras registrarse los nuevos usuarios de Santillana Connect se les clone esta actividad reciente
+            // Inevery Crea: Hay que mantener una cachï¿½ del proyecto por grupo para que tras registrarse los nuevos usuarios de Santillana Connect se les clone esta actividad reciente
             foreach (Guid grupoID in pListaGruposAfectadosEventoConRecursosPrivados.Keys)
             {
                 ActualizarLiveProyectoGrupo(pFilaCola, grupoID, pLiveUsuariosCL, pNombreCacheElemento);
@@ -789,7 +792,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
                 //Actualizo la actividad reciente del perfil del autor del recurso o comentario
                 ActualizarLiveProyectoPerfilUsuarioLista(pLiveUsuariosCL, (AccionLive)pFilaCola.Accion, pFilaCola.ProyectoId, mListaAutoresID, pNombreCacheElemento, proyectoPrivado || recursoVisibleSoloParaMiembros);
 
-                //Actualizo la actividad reciente del perfil organización del autor del recurso o comentario
+                //Actualizo la actividad reciente del perfil organizaciï¿½n del autor del recurso o comentario
                 ActualizarLiveProyectoPerfilOrganizacionLista(pLiveUsuariosCL, pFilaCola, mListaOrganizacionesIDAutores, pNombreCacheElemento, proyectoPrivado || recursoVisibleSoloParaMiembros);
             }
             //Actualizo la actividad reciente de la home de la comunidad
@@ -849,7 +852,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
             IdentidadCN identCN = new IdentidadCN(entityContext, loggingService, mConfigService, servicesUtilVirtuosoAndReplication, mLoggerFactory.CreateLogger<IdentidadCN>(), mLoggerFactory);
             List<Guid> listaTodosGruposProyecto = usuarioCN.ObtenerListaGruposPorProyecto(pProyectoID);
 
-            //Al ser una clave de caché privada para cada grupo, hay que obtener los grupos si o si.
+            //Al ser una clave de cachï¿½ privada para cada grupo, hay que obtener los grupos si o si.
             foreach (Guid grupoID in listaTodosGruposProyecto)
             {
                 pLiveUsuariosCL.EliminarLiveProyectoGrupo(grupoID, pProyectoID, pNombreCacheElemento);
@@ -1072,7 +1075,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         }
 
         /// <summary>
-        /// Obtiene el último Score que se asigno a un perfil
+        /// Obtiene el ï¿½ltimo Score que se asigno a un perfil
         /// </summary>
         /// <param name="pPerfilID"></param>
         /// <returns></returns>
@@ -1087,7 +1090,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         }
 
         /// <summary>
-        /// Obtiene el último Score que se asigno a un usuario de proyecto
+        /// Obtiene el ï¿½ltimo Score que se asigno a un usuario de proyecto
         /// </summary>
         /// <param name="pProyectoID"></param>
         /// <param name="pUsuarioID"></param>
@@ -1105,7 +1108,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         }
 
         /// <summary>
-        /// Obtiene el último Score que se asigno a un usuario de proyecto
+        /// Obtiene el ï¿½ltimo Score que se asigno a un usuario de proyecto
         /// </summary>
         /// <param name="pProyectoID"></param>
         /// <param name="pUsuarioID"></param>
@@ -1123,7 +1126,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         }
 
         /// <summary>
-        /// Obtiene el último Score que se asigno a un usuario de proyecto
+        /// Obtiene el ï¿½ltimo Score que se asigno a un usuario de proyecto
         /// </summary>
         /// <param name="pProyectoID"></param>
         /// <param name="pUsuarioID"></param>
@@ -1145,7 +1148,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         }
 
         /// <summary>
-        /// Obtiene el último Score que se asigno a un usuario de proyecto
+        /// Obtiene el ï¿½ltimo Score que se asigno a un usuario de proyecto
         /// </summary>
         /// <param name="pProyectoID"></param>
         /// <param name="pUsuarioID"></param>
@@ -1167,7 +1170,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
         }
 
         /// <summary>
-        /// Obtiene el último Score que se asigno a un usuario de proyecto
+        /// Obtiene el ï¿½ltimo Score que se asigno a un usuario de proyecto
         /// </summary>
         /// <param name="pProyectoID"></param>
         /// <param name="pUsuarioID"></param>
@@ -1186,7 +1189,7 @@ namespace Es.Riam.Gnoss.Win.ServicioLiveUsuarios
 
 
         /// <summary>
-        /// Obtiene el último Score que se asigno a un usuario de proyecto
+        /// Obtiene el ï¿½ltimo Score que se asigno a un usuario de proyecto
         /// </summary>
         /// <param name="pProyectoID"></param>
         /// <param name="pUsuarioID"></param>
